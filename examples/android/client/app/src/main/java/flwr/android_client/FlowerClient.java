@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.nfc.Tag;
 import android.os.ConditionVariable;
 import android.util.Log;
 import android.util.Pair;
@@ -25,7 +26,7 @@ public class FlowerClient {
     private final ConditionVariable isTraining = new ConditionVariable();
     private static String TAG = "Flower";
     private int local_epochs = 1;
-
+int round = 1;
     public FlowerClient(Context context) {
         this.tlModel = new TransferLearningModelWrapper(context);
         this.context = context;
@@ -35,8 +36,15 @@ public class FlowerClient {
         return tlModel.getParameters();
     }
 
-    public Pair<ByteBuffer[], Integer> fit(ByteBuffer[] weights, int epochs) {
-
+    public Pair<ByteBuffer[], Integer> fit(ByteBuffer[] weights, int epochs, int training_rounds) {
+        Log.e(TAG, "training rounds::"+training_rounds);
+        Log.e(TAG, "current round::"+round);
+        if(round==training_rounds){
+            Log.e(TAG,"100%");
+        }else {
+            Log.e(TAG, "training percentage::" +Double.valueOf(round-1)/training_rounds*100+"%");
+        }
+        round = round + 1;
         this.local_epochs = epochs;
         tlModel.updateParameters(weights);
         isTraining.close();
@@ -44,6 +52,7 @@ public class FlowerClient {
         tlModel.enableTraining((epoch, loss) -> setLastLoss(epoch, loss));
         Log.e(TAG ,  "Training enabled. Local Epochs = " + this.local_epochs);
         isTraining.block();
+
         return Pair.create(getWeights(), tlModel.getSize_Training());
     }
 
@@ -54,6 +63,7 @@ public class FlowerClient {
     }
 
     public void setLastLoss(int epoch, float newLoss) {
+
         if (epoch == this.local_epochs - 1) {
             Log.e(TAG, "Training finished after epoch = " + epoch);
             lastLoss.postValue(newLoss);

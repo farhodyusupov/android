@@ -1,19 +1,20 @@
 package flwr.android_client;
 
+import android.app.Activity;
 import android.content.Context;
 import android.os.ConditionVariable;
-import android.os.Environment;
 import android.util.Log;
 import android.util.Pair;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.GatheringByteChannel;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import org.tensorflow.lite.examples.transfer.api.AssetModelLoader;
@@ -40,22 +41,24 @@ public class TransferLearningModelWrapper implements Closeable {
     private final ConditionVariable shouldTrain = new ConditionVariable();
     private volatile LossConsumer lossConsumer;
     private Context context;
+
     TransferLearningModelWrapper(Context context) {
-        model =
+          model =
                 new TransferLearningModel(
                         new AssetModelLoader(context, "model"),
                         Arrays.asList("cat", "dog", "truck", "bird",
                                 "airplane", "ship", "frog", "horse", "deer",
                                 "automobile"));
         this.context = context;
+
     }
 
 
-    public void train(int epochs){
+    public void train(int epochs, int rounds,  ProgressBar prBar, Activity activity){
         new Thread(() -> {
                 shouldTrain.block();
                 try {
-                    model.train(epochs, lossConsumer).get();
+                    model.train(epochs, lossConsumer, rounds, prBar, activity).get();
                 } catch (ExecutionException e) {
                     throw new RuntimeException("Exception occurred during model training", e.getCause());
                 } catch (InterruptedException e) {

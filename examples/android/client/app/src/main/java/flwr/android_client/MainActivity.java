@@ -1,9 +1,11 @@
 package flwr.android_client;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
 import android.icu.text.SimpleDateFormat;
+import android.nfc.Tag;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -43,7 +45,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -56,15 +58,25 @@ public class MainActivity extends AppCompatActivity {
     private Button connectButton;
     private Button trainButton;
     private TextView resultText;
+
     private EditText device_id;
     private ManagedChannel channel;
     public FlowerClient fc;
     private static final String TAG = "Flower";
 
-    int pStatus = 0;
-    private Handler handler = new Handler();
-    TextView tv;
-    int round_cound  = 1;
+    public ProgressBar mProgress;
+
+    public TextView tv;
+    public TextView roundText;
+    public TextView epochText;
+    public TextView lossText;
+    public TextView accuracyText;
+    Handler handler;
+    public List<Float> lossList;
+    public LineChart lineChart;
+    public LineChart lineChart1;
+
+    public List<Float> accuracyList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,111 +92,44 @@ public class MainActivity extends AppCompatActivity {
         trainButton = (Button) findViewById(R.id.trainFederated);
         Resources res = getResources();
         Drawable drawable = res.getDrawable(R.drawable.circle_process);
-        final ProgressBar mProgress = (ProgressBar) findViewById(R.id.circularProgressbar);
+        mProgress = (ProgressBar) findViewById(R.id.circularProgressbar);
         mProgress.setProgress(0);   // Main Progress
         mProgress.setSecondaryProgress(100); // Secondary Progress
         mProgress.setMax(100); // Maximum Progress
         mProgress.setProgressDrawable(drawable);
-
         tv = (TextView) findViewById(R.id.tv);
-
-        List<Entry> entries = new ArrayList<>();
-        entries.add(new Entry(0, 10));
-        entries.add(new Entry(1, 20));
-        entries.add(new Entry(2, 30));
-        entries.add(new Entry(3, 40));
-        entries.add(new Entry(4, 45));
-
-        List<Entry> entries1 = new ArrayList<>();
-        entries1.add(new Entry((float) 0.6, 8));
-        entries1.add(new Entry((float) 0.9, 14));
-        entries1.add(new Entry((float) 1.2, 12));
-        entries1.add(new Entry((float) 1.7, 22));
-        entries1.add(new Entry((float) 2.1, 32));
-
-        List<Entry> entries2 = new ArrayList<>();
-        entries2.add(new Entry((float) 0.2, 5));
-        entries2.add(new Entry((float) 1.1, 11));
-        entries2.add(new Entry((float) 1.6, 18));
-        entries2.add(new Entry((float) 2.9, 25));
-        entries2.add(new Entry((float) 3.5, 32));
-
-        List<Entry> entries3 = new ArrayList<>();
-        entries3.add(new Entry((float) 0.3, 7));
-        entries3.add(new Entry((float) 1.4, 17));
-        entries3.add(new Entry((float) 1.7, 23));
-        entries3.add(new Entry((float) 2.2, 29));
-        entries3.add(new Entry((float) 3.1, 34));
-        LineDataSet dataSet = new LineDataSet(entries, "Training loss");
-        LineDataSet dataSet1 = new LineDataSet(entries, "Accuracy");
-        LineDataSet dataSet2 = new LineDataSet(entries, "Test loss");
-        LineDataSet dataSet3 = new LineDataSet(entries, "Training");
-        LineData lineData = new LineData(dataSet);
-        LineData lineData1 = new LineData(dataSet1);
-        LineData lineData2 = new LineData(dataSet2);
-        LineData lineData3 = new LineData(dataSet3);
-//        LineChart lineChart = findViewById(R.id.lineChart);
-//        lineChart.setData(lineData);
-//        lineChart.invalidate();
-//
-//        LineChart lineChart1 = findViewById(R.id.lineChart1);
-//        lineChart1.setData(lineData1);
-//        lineChart1.invalidate();
-//
-//        LineChart lineChart2 = findViewById(R.id.lineChart2);
-//        lineChart2.setData(lineData2);
-//        lineChart2.invalidate();
-//
-//        LineChart lineChart3 = findViewById(R.id.lineChart3);
-//        lineChart3.setData(lineData3);
-//        lineChart3.invalidate();
+        mProgress.getProgress();
+        handler = new Handler();
+        roundText = (TextView) findViewById(R.id.round_txt);
+        epochText = (TextView) findViewById(R.id.epoch_txt);
+        lossText = (TextView) findViewById(R.id.loss_txt);
+        accuracyText = (TextView) findViewById(R.id.accuracy_txt);
+        accuracyList = new ArrayList<>();
+        lossList = new ArrayList<>();
+        lineChart = findViewById(R.id.lineChart);
+        lineChart1 = findViewById(R.id.lineChart1);
 
 
-//        dataSet.notifyDataSetChanged();
-//        lineData.notifyDataChanged();
-//        lineChart.notifyDataSetChanged();
-//        lineChart.invalidate();
-//
-//        lineChart1.notifyDataSetChanged();
-//        lineChart1.invalidate();
-//        lineData1.notifyDataChanged();
-//        dataSet1.notifyDataSetChanged();
-//
-//        lineChart2.notifyDataSetChanged();
-//        lineChart2.invalidate();
-//        lineData2.notifyDataChanged();
-//        dataSet2.notifyDataSetChanged();
-//
-//        lineChart3.notifyDataSetChanged();
-//        lineChart3.invalidate();
-//        lineData3.notifyDataChanged();
-//        dataSet3.notifyDataSetChanged();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (mProgress.getProgress() <= 100) {
+                    handler.post(new Runnable() {
+                        @SuppressLint("SetTextI18n")
+                        @Override
+                        public void run() {
+                            tv.setText(mProgress.getProgress() + " %");
+                        }
+                    });
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-
-//        new Thread(new Runnable() {
-//            @Override
-//            public void run() {
-//                // TODO Auto-generated method stub
-//                while (pStatus < 100) {
-//                    pStatus += 1;
-//                    handler.post(new Runnable() {
-//                        @Override
-//                        public void run() {
-//                            // TODO Auto-generated method stub
-//                            mProgress.setProgress(pStatus);
-//                            tv.setText(pStatus + "%");
-//                        }
-//                    });
-//                    try {
-//                        // Sleep for 200 milliseconds.
-//                        // Just to display the progress slowly
-//                        Thread.sleep(5000); //thread will take approx 3 seconds to finish
-//                    } catch (InterruptedException e) {
-//                        e.printStackTrace();
-//                    }
-//                }
-//            }
-//        }).start();
+            }
+        }).start();
 
         fc = new FlowerClient(this);
     }
@@ -196,6 +141,117 @@ public class MainActivity extends AppCompatActivity {
             view = new View(activity);
         }
         imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
+    }
+
+    void setRoundText(int round, int epochs) {
+        roundText.setText(String.valueOf(round));
+        epochText.setText(String.valueOf(epochs));
+    }
+
+    void setLossAccuracy(double accuracy, double loss) {
+        accuracyText.setText(String.valueOf(accuracy));
+        lossText.setText(String.valueOf(loss));
+    }
+
+    void setTableResults(List<Float> accList, List<Float> lssList) {
+       runOnUiThread(new Runnable() {
+           @Override
+           public void run() {
+
+               Log.e(TAG,"working after finish");
+               lineChart.setVisibility(View.VISIBLE);
+               lineChart1.setVisibility(View.VISIBLE);
+               List<Entry> entries = new ArrayList<>();
+//               entries.add(new Entry(0, 10));
+//               entries.add(new Entry(1, 20));
+//               entries.add(new Entry(2, 30));
+//               entries.add(new Entry(3, 40));
+//               entries.add(new Entry(4, 45));
+               lssList.forEach(loss->{
+                   Log.e(TAG, "acc:"+loss );
+                   Log.e(TAG, "index:"+lssList.indexOf(loss) );
+                   entries.add(new Entry(lssList.indexOf(loss), loss));
+               });
+
+
+
+               List<Entry> entries1 = new ArrayList<>();
+//               entries1.add(new Entry((float) 0.6, 8));
+//               entries1.add(new Entry((float) 0.9, 14));
+//               entries1.add(new Entry((float) 1.2, 12));
+//               entries1.add(new Entry((float) 1.7, 22));
+//               entries1.add(new Entry((float) 2.1, 32));
+               accList.forEach(acc->{
+                   Log.e(TAG, "acc:"+acc );
+                   Log.e(TAG, "index:"+accList.indexOf(acc) );
+                   entries1.add(new Entry( accList.indexOf(acc),acc));
+               });
+               LineDataSet dataSet = new LineDataSet(entries, "Training loss");
+               LineDataSet dataSet1 = new LineDataSet(entries, "Accuracy");
+
+               LineData lineData = new LineData(dataSet);
+               LineData lineData1 = new LineData(dataSet1);
+
+
+               LineChart lineChart = findViewById(R.id.lineChart);
+               lineChart.setData(lineData);
+               lineChart.invalidate();
+
+               LineChart lineChart1 = findViewById(R.id.lineChart1);
+               lineChart1.setData(lineData1);
+               lineChart1.invalidate();
+               dataSet.notifyDataSetChanged();
+               lineData.notifyDataChanged();
+               lineChart.notifyDataSetChanged();
+               lineChart.invalidate();
+
+               lineChart1.notifyDataSetChanged();
+               lineChart1.invalidate();
+               lineData1.notifyDataChanged();
+               dataSet1.notifyDataSetChanged();
+
+
+
+//               List<Entry> entries = new ArrayList<>();
+//               List<Entry> entries1 = new ArrayList<>();
+//
+//               lssList.forEach(loss->{
+//                   Log.e(TAG, "table data added");
+//                   entries.add(new Entry(loss, lssList.indexOf(loss)));
+//               });
+//               accList.forEach(acc->{
+//                   Log.e(TAG, "table data added");
+//                   entries1.add(new Entry(acc, accList.indexOf(acc)));
+//               });
+//               LineDataSet dataSet = new LineDataSet(entries, "Training loss");
+//               LineDataSet dataSet1 = new LineDataSet(entries1, "Training accuracy");
+//               LineData lineData = new LineData(dataSet);
+//               LineData lineData1 = new LineData(dataSet1);
+//               Log.e(TAG,"working 1");
+//               lineChart.setData(lineData);
+//               lineChart.invalidate();
+//               Log.e(TAG,"working 2");
+//
+//               lineChart1.setData(lineData1);
+//               lineChart1.invalidate();
+//               Log.e(TAG,"working 3");
+//
+//               dataSet.notifyDataSetChanged();
+//               lineData.notifyDataChanged();
+//               lineChart.notifyDataSetChanged();
+//               lineChart.invalidate();
+//               Log.e(TAG,"working 4");
+//
+//               lineChart1.notifyDataSetChanged();
+//               lineData1.notifyDataChanged();
+//               dataSet1.notifyDataSetChanged();
+//               lineChart1.invalidate();
+//               Log.e(TAG,"working 5");
+
+
+           }
+       });
+
     }
 
 
@@ -310,28 +366,32 @@ public class MainActivity extends AppCompatActivity {
 
 
             final CountDownLatch finishLatch = new CountDownLatch(1);
-            Log.e(TAG, "cound::" + finishLatch.getCount());
             requestObserver = asyncStub.join(
                     new StreamObserver<ServerMessage>() {
 
                         @Override
                         public void onNext(ServerMessage msg) {
                             handleMessage(msg, activity);
+                            Log.e(TAG, "count::" + finishLatch.getCount());
 
                         }
 
                         @Override
                         public void onError(Throwable t) {
-                            t.printStackTrace();
+                            activity.channel.shutdown();
+                            Log.e(TAG, "error cause::"+t.getCause());
                             failed = t;
                             finishLatch.countDown();
                             activity.setResultText("Finished and Connection channel closed");
-//                            Log.e(TAG, t.getCause().toString());
+                            Log.e(TAG, ""+failed);
+                            activity.setTableResults(activity.accuracyList, activity.lossList);
+
                         }
 
                         @Override
                         public void onCompleted() {
                             finishLatch.countDown();
+
                             activity.setResultText("done");
                             Log.e(TAG, "Done");
                         }
@@ -339,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         private void handleMessage(ServerMessage message, MainActivity activity) {
-                Log.e(TAG, "server messages ::"+message.toString());
+            Log.e("handleMessage:", "here message::" + message.toString());
             try {
                 ByteBuffer[] weights;
                 ClientMessage c = null;
@@ -364,21 +424,21 @@ public class MainActivity extends AppCompatActivity {
                     int local_epochs = (int) epoch_config.getSint64();
                     int training_rounds = (int) num_rounds.getSint64();
                     Log.e(TAG, String.valueOf(local_epochs));
-                    Log.e(TAG, "trainingrounds::"+String.valueOf(training_rounds));
+                    Log.e(TAG, "trainingrounds::" + training_rounds);
                     // Our model has 10 layers
                     ByteBuffer[] newWeights = new ByteBuffer[10];
                     for (int i = 0; i < 10; i++) {
                         newWeights[i] = ByteBuffer.wrap(layers.get(i).toByteArray());
                     }
+                    activity.setRoundText(3, local_epochs);
 
-                    Pair<ByteBuffer[], Integer> outputs = activity.fc.fit(newWeights, local_epochs, training_rounds);
+                    Pair<ByteBuffer[], Integer> outputs = activity.fc.fit(newWeights, local_epochs, training_rounds, activity.mProgress, activity);
                     c = fitResAsProto(outputs.first, outputs.second);
                 } else if (message.hasEvaluateIns()) {
                     Log.e(TAG, "Handling EvaluateIns");
                     activity.setResultText("Handling Evaluate request from the server");
 
                     List<ByteString> layers = message.getEvaluateIns().getParameters().getTensorsList();
-
                     // Our model has 10 layers
                     ByteBuffer[] newWeights = new ByteBuffer[10];
                     for (int i = 0; i < 10; i++) {
@@ -386,8 +446,14 @@ public class MainActivity extends AppCompatActivity {
                     }
                     Pair<Pair<Float, Float>, Integer> inference = activity.fc.evaluate(newWeights);
 
-                    float loss = inference.first.first;
-                    float accuracy = inference.first.second;
+                    Float loss = inference.first.first;
+                    Log.e(TAG, "loss::" + loss);
+                    Float accuracy = inference.first.second;
+                    Log.e(TAG, "accuracy::" + accuracy);
+                    activity.setLossAccuracy(accuracy, loss);
+                    activity.lossList.add(loss);
+                    activity.accuracyList.add(accuracy);
+
                     activity.setResultText("Test Accuracy after this round = " + accuracy);
                     int test_size = inference.second;
                     c = evaluateResAsProto(loss, test_size);

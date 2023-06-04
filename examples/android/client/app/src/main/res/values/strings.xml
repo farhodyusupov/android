@@ -4,8 +4,8 @@
     <string name="tr_text">Training process</string>
     <string name="round_txt">Round: 0</string>
     <string name="epoch_txt">Epoch: 0</string>
-    <string name="loss_txt">Los: 0.00</string>
-    <string name="acc_txt">Accuracy: 0.00</string>
+    <string name="loss_txt">Los: </string>
+    <string name="acc_txt">Accuracy:</string>
     <string name="logs">Logs</string>
     <string name="results_txt">Results</string>
 </resources>

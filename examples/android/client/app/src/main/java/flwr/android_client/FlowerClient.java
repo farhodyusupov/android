@@ -1,13 +1,14 @@
 package flwr.android_client;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas;
-import android.nfc.Tag;
 import android.os.ConditionVariable;
 import android.util.Log;
 import android.util.Pair;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 
 import androidx.lifecycle.MutableLiveData;
 
@@ -15,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 
 public class FlowerClient {
@@ -26,6 +28,8 @@ public class FlowerClient {
     private final ConditionVariable isTraining = new ConditionVariable();
     private static String TAG = "Flower";
     private int local_epochs = 1;
+
+    public  TransferLearningModelWrapper tfWrapper;
 int round = 1;
     public FlowerClient(Context context) {
         this.tlModel = new TransferLearningModelWrapper(context);
@@ -36,23 +40,20 @@ int round = 1;
         return tlModel.getParameters();
     }
 
-    public Pair<ByteBuffer[], Integer> fit(ByteBuffer[] weights, int epochs, int training_rounds) {
-        Log.e(TAG, "training rounds::"+training_rounds);
-        Log.e(TAG, "current round::"+round);
-        if(round==training_rounds){
-            Log.e(TAG,"100%");
-        }else {
-            Log.e(TAG, "training percentage::" +Double.valueOf(round-1)/training_rounds*100+"%");
-        }
-        round = round + 1;
+    public Pair<ByteBuffer[], Integer> fit(ByteBuffer[] weights, int epochs, int training_rounds, ProgressBar prBar, Activity activity) {
+
         this.local_epochs = epochs;
         tlModel.updateParameters(weights);
         isTraining.close();
-        tlModel.train(this.local_epochs);
+        tlModel.train(this.local_epochs, training_rounds,  prBar, activity);
         tlModel.enableTraining((epoch, loss) -> setLastLoss(epoch, loss));
         Log.e(TAG ,  "Training enabled. Local Epochs = " + this.local_epochs);
         isTraining.block();
+        Log.e(TAG, "training rounds::"+training_rounds);
+        Log.e(TAG, "current round::"+round);
 
+
+        round = round + 1;
         return Pair.create(getWeights(), tlModel.getSize_Training());
     }
 
